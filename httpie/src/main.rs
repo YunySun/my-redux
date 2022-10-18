@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Ok, Result};
 use clap::Parser;
+use colored::*;
+use mime::Mime;
 use reqwest::{header, Client, Response, Url};
 use std::{collections::HashMap, str::FromStr};
 
@@ -82,24 +84,10 @@ fn parse_kv_pair(s: &str) -> Result<KvPair> {
     Ok(s.parse()?)
 }
 
-// cargo run post http://m.mcdn.wuzhishuyuan.com/shudanlists.do tag_id=0 num=2 type=0
-#[tokio::main]
-async fn main() -> Result<()> {
-    let opts: Opts = Opts::parse();
-    // 生成一个Http客户端
-    let client = Client::new();
-    let result = match opts.subcmd {
-        SubCommand::Get(ref args) => get(client, args).await?,
-        SubCommand::Post(ref args) => post(client, args).await?,
-    };
-
-    Ok(result)
-}
-
 async fn get(client: Client, args: &Get) -> Result<()> {
     let resp = client.get(&args.url).send().await?;
-    println!("{:?}", resp.text().await?);
-    Ok(())
+    // println!("{:?}", resp.text().await?);
+    Ok(print_resp(resp).await?)
 }
 
 async fn post(client: Client, args: &Post) -> Result<()> {
@@ -108,6 +96,69 @@ async fn post(client: Client, args: &Post) -> Result<()> {
         body.insert(&pair.k, &pair.v);
     }
     let resp = client.post(&args.url).json(&body).send().await?;
-    println!("{:?}", resp.text().await?);
+    // println!("{:?}", resp.text().await?);
+    Ok(print_resp(resp).await?)
+}
+
+// 打印服务器版本号和状态码
+fn print_status(resp: &Response) {
+    let status = format!("{:?} {}", resp.version(), resp.status()).blue();
+    println!("{}\n", status);
+}
+
+// 打印服务器返回的HTTP headerr
+fn print_headers(resp: &Response) {
+    for (name, value) in resp.headers() {
+        println!("{}: {:?}", name.to_string().green(), value)
+    }
+    println!("\n")
+}
+
+// 打印服务器返回的HTTP body
+fn print_body(m: Option<Mime>, body: &String) {
+    match m {
+        // 对于 application/json 使用pretty print
+        Some(v) if v == mime::APPLICATION_JSON => {
+            println!("{}", jsonxf::pretty_print(body).unwrap().cyan());
+        }
+        // 其他的直接输出
+        _ => println!("{}", body),
+    }
+}
+
+// 打印整个响应
+async fn print_resp(resp: Response) -> Result<()> {
+    print_status(&resp);
+    print_headers(&resp);
+    let mime = get_content_type(&resp);
+    let body = resp.text().await?;
+    print_body(mime, &body);
     Ok(())
+}
+
+// 将服务器返回的content-type解析成mime类型
+fn get_content_type(resp: &Response) -> Option<Mime> {
+    resp.headers()
+        .get(header::CONTENT_TYPE)
+        .map(|v| v.to_str().unwrap().parse().unwrap())
+}
+
+// cargo run post http://m.mcdn.wuzhishuyuan.com/shudanlists.do tag_id=0 num=2 type=0
+#[tokio::main]
+async fn main() -> Result<()> {
+    let opts: Opts = Opts::parse();
+    let mut headers = header::HeaderMap::new();
+    // 为Http客户端添加一些缺省的http头
+    headers.insert("X-POWERED-BY", "Rust Httpie".parse()?);
+    headers.insert(header::USER_AGENT, "Rust Httpie".parse()?);
+    // 生成一个Http客户端
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()?;
+    let result = match opts.subcmd {
+        SubCommand::Get(ref args) => get(client, args).await?,
+        SubCommand::Post(ref args) => post(client, args).await?,
+    };
+
+    Ok(result)
 }
