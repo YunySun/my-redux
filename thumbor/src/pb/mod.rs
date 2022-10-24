@@ -3,7 +3,7 @@
  * @Author: 李昶
  * @Date: 2022-10-23 11:46:38
  * @LastEditors: 李昶
- * @LastEditTime: 2022-10-23 17:06:24
+ * @LastEditTime: 2022-10-24 15:54:12
  * @Profile: 一个比较废柴的前端开发
  */
 use base64::{decode_config, encode_config, URL_SAFE_NO_PAD};
@@ -13,6 +13,7 @@ use std::convert::TryFrom;
 
 mod abi; // 声明abi.rs
 pub use abi::*;
+
 impl ImageSpec {
     pub fn new(specs: Vec<Spec>) -> Self {
         Self { specs }
@@ -29,7 +30,7 @@ impl From<&ImageSpec> for String {
 
 // 让ImageSpec可以通过一个字符串创建。比如s.parse().unwrap()
 impl TryFrom<&str> for ImageSpec {
-    type Error = any::Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let data = decode_config(value, URL_SAFE_NO_PAD)?;
@@ -50,15 +51,15 @@ impl filter::Filter {
 }
 
 // 在我们定义的SampleFilter和photo_rs的SamplingFilter间转换
-impl From<resize::SampleFilter> for SampleFilter {
+impl From<resize::SampleFilter> for SamplingFilter {
     fn from(v: resize::SampleFilter) -> Self {
         match v {
-            resize::SampleFilter::Undefined => SampleFilter::Nearest,
-            resize::SampleFilter::Nearest => SampleFilter::Nearest,
-            resize::SampleFilter::Triangle => SampleFilter::Triangle,
-            resize::SampleFilter::CatmullRom => SampleFilter::CatmullRom,
-            resize::SampleFilter::Gaussian => SampleFilter::Gaussian,
-            resize::SampleFilter::Lancz0s3 => SampleFilter::Lancz0s3,
+            resize::SampleFilter::Undefined => SamplingFilter::Nearest,
+            resize::SampleFilter::Nearest => SamplingFilter::Nearest,
+            resize::SampleFilter::Triangle => SamplingFilter::Triangle,
+            resize::SampleFilter::CatmullRom => SamplingFilter::CatmullRom,
+            resize::SampleFilter::Gaussian => SamplingFilter::Gaussian,
+            resize::SampleFilter::Lanczos3 => SamplingFilter::Lanczos3,
         }
     }
 }
@@ -66,7 +67,7 @@ impl From<resize::SampleFilter> for SampleFilter {
 impl Spec {
     pub fn new_resize_seam_carve(width: u32, height: u32) -> Self {
         Self {
-            data: Some(spec::Date::Resize(Resize {
+            data: Some(spec::Data::Resize(Resize {
                 width,
                 height,
                 rtype: resize::ResizeType::SeamCrave as i32,
@@ -112,7 +113,7 @@ mod tests {
         let spec1 = Spec::new_resize(600, 600, resize::SampleFilter::CatmullRom);
         let spec2 = Spec::new_filter(filter::Filter::Marine);
         let image_spec = ImageSpec::new(vec![spec1, spec2]);
-        let s: String = image_spec::borrow().into();
+        let s: String = image_spec.borrow().into();
         assert_eq!(image_spec, s.as_str().try_into().unwrap());
     }
 }

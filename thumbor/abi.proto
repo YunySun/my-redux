@@ -23,7 +23,7 @@ message Resize {
         TRIANGLE = 2;
         CATMULL_ROM = 3;
         GAUSSIAN = 4;
-        LANCZ0S3 = 5;
+        LANCZOS3 = 5;
     }
 
     SampleFilter filter = 4;

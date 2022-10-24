@@ -44,7 +44,7 @@ pub mod resize {
         Triangle = 2,
         CatmullRom = 3,
         Gaussian = 4,
-        Lancz0s3 = 5,
+        Lanczos3 = 5,
     }
     impl SampleFilter {
         /// String value of the enum field names used in the ProtoBuf definition.
@@ -58,7 +58,7 @@ pub mod resize {
                 SampleFilter::Triangle => "TRIANGLE",
                 SampleFilter::CatmullRom => "CATMULL_ROM",
                 SampleFilter::Gaussian => "GAUSSIAN",
-                SampleFilter::Lancz0s3 => "LANCZ0S3",
+                SampleFilter::Lanczos3 => "LANCZOS3",
             }
         }
     }
