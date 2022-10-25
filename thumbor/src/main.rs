@@ -3,7 +3,7 @@
  * @Author: 李昶
  * @Date: 2022-10-22 17:18:57
  * @LastEditors: 李昶
- * @LastEditTime: 2022-10-24 22:45:30
+ * @LastEditTime: 2022-10-25 11:45:00
  * @Profile: 一个比较废柴的前端开发
  */
 use anyhow::Result;
@@ -19,6 +19,7 @@ use percent_encoding::{percent_decode_str, percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 use std::{
     collections::hash_map::DefaultHasher,
+    convert::TryInto,
     hash::{Hash, Hasher},
     num::NonZeroUsize,
     sync::Arc,
@@ -29,13 +30,17 @@ use tower::ServiceBuilder;
 use tracing::{info, instrument};
 
 // 引入protobuf生成的代码
+mod engine;
 mod pb;
 
+use engine::{Engine, Photon};
+use image::ImageOutputFormat;
 use pb::*;
 
 // 参数使用serde做Deserialize，axum可以自动识别并解析
 #[derive(Deserialize)]
 struct Params {
+    spec: String,
     url: String,
 }
 
@@ -93,9 +98,13 @@ async fn main() {
 
 // 解析参数
 async fn generate(
-    Path(Params { url }): Path<Params>,
+    Path(Params { spec, url }): Path<Params>,
     Extension(cache): Extension<Cache>,
 ) -> Result<(HeaderMap, Vec<u8>), StatusCode> {
+    let spec: ImageSpec = spec
+        .as_str()
+        .try_into()
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
     let url: &str = &percent_decode_str(&url).decode_utf8_lossy();
 
     let data = retrieve_image(&url, cache)
@@ -104,10 +113,19 @@ async fn generate(
 
     // 处理图片
 
+    // 使用 image engine 处理
+    let mut engine: Photon = data
+        .try_into()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    engine.apply(&spec.specs);
+
+    let image = engine.generate(ImageOutputFormat::Jpeg(85));
+
+    info!("Finished processing: image size {}", image.len());
     let mut headers = HeaderMap::new();
 
     headers.insert("content-type", HeaderValue::from_static("image/jpeg"));
-    Ok((headers, data.to_vec()))
+    Ok((headers, image))
 }
 
 #[instrument(level = "info", skip(cache))]
